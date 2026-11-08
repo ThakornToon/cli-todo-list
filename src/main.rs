@@ -44,8 +44,9 @@ fn main() {
         println!("3. เปลี่ยนสถานะ Task หลายรายการ (Complete/Incomplete)");
         println!("4. ลบ Task (ระบุได้หลาย ID)");
         println!("5. แก้ไขชื่องาน/กำหนดเวลา");
-        println!("6. ออกจากโปรแกรม");
-        let choice = match prompt_line("กรุณาเลือกเมนู (1-6): ") {
+        println!("6. จัดเรียง ID ใหม่");
+        println!("7. ออกจากโปรแกรม");
+        let choice = match prompt_line("กรุณาเลือกเมนู (1-7): ") {
             PromptInput::Value(choice) => choice,
             PromptInput::Back => continue,
             PromptInput::EndOfInput => {
@@ -61,11 +62,12 @@ fn main() {
             "3" => toggle_task_status(&mut tasks),
             "4" => delete_task(&mut tasks),
             "5" => edit_task(&mut tasks),
-            "6" => {
+            "6" => normalize_task_ids(&mut tasks),
+            "7" => {
                 println!("ม้าที่ว่าเร็วก็ยังแพ้ลา...เพราะลาไปก่อน ✌️");
                 break;
             }
-            _ => println!("❌ เมนูไม่ถูกต้อง กรุณาเลือก 1-6"),
+            _ => println!("❌ เมนูไม่ถูกต้อง กรุณาเลือก 1-7"),
         }
     }
 }
@@ -79,8 +81,8 @@ fn add_task(tasks: &mut Vec<Task>) {
         return;
     };
 
-    // ใช้ ID สูงสุดที่มีอยู่บวกหนึ่ง ทำให้การลบ Task ไม่ทำให้ ID เดิมถูกนำมาใช้ซ้ำ
-    // checked_add ป้องกันการล้นของ usize; במקרהนั้นยกเลิกการเพิ่มอย่างปลอดภัย
+    // ใช้ ID สูงสุดที่มีอยู่บวกหนึ่ง ทำให้การเพิ่ม Task ไม่ทำให้ ID เดิมถูกนำมาใช้ซ้ำถ้า Task ถูกลบไปแล้ว
+    // checked_add ป้องกันการล้นของ usize; ในกรณีนี้ยกเลิกการเพิ่มอย่างปลอดภัย
     let id: usize = match tasks
         .iter()
         .map(|task| task.id)
@@ -681,6 +683,58 @@ fn edit_task(tasks: &mut [Task]) {
             // คืน Task เดิม เพื่อไม่ให้หน่วยความจำแสดงค่าที่ไม่ได้ถูกบันทึก
             tasks[index] = original;
             eprintln!("❌ บันทึกการแก้ไขไม่สำเร็จ: {error}");
+        }
+    }
+}
+
+// จัด ID ใหม่เป็น 1..N ตามลำดับ Task ในรายการ และบันทึกผลลงไฟล์
+fn normalize_task_ids(tasks: &mut [Task]) {
+    if tasks.is_empty() {
+        println!("📭 ยังไม่มี Task ให้จัดเรียง ID");
+        return;
+    }
+
+    println!("ID จะถูกกำหนดใหม่ตามลำดับรายการปัจจุบัน:");
+    let mut changes = Vec::new();
+    for (index, task) in tasks.iter().enumerate() {
+        let new_id: usize = index + 1;
+        if task.id != new_id {
+            println!("  • #{} → #{} {}", task.id, new_id, task.title);
+            changes.push((task.id, new_id));
+        }
+    }
+
+    if changes.is_empty() {
+        println!("✅ ID เรียงต่อเนื่องอยู่แล้ว ไม่ต้องเปลี่ยนแปลง");
+        return;
+    }
+
+    // ขอการยืนยันจากผู้ใช้ก่อนเปลี่ยน ID จริง โดยรองรับ y/yes/ใช่ และ n/no/ไม่
+    loop {
+        let Some(answer) = prompt_value("ยืนยันการจัดเรียง ID ใหม่? (y/n)")
+        else {
+            return;
+        };
+        match answer.trim().to_lowercase().as_str() {
+            "y" | "yes" | "ใช่" => break,
+            "n" | "no" | "ไม่" => {
+                println!("ยกเลิกการจัดเรียง ID แล้ว");
+                return;
+            }
+            _ => println!("❌ กรุณาตอบ y หรือ n"),
+        }
+    }
+
+    let original_tasks: Vec<Task> = tasks.to_vec();  // สำรองรายการเดิมไว้กู้คืน หากการบันทึกหลังเปลี่ยน ID ไม่สำเร็จ
+    for (index, task) in tasks.iter_mut().enumerate() {
+        task.id = index + 1;
+    }
+
+    match save_tasks(tasks) {
+        Ok(()) => println!("✅ จัดเรียง ID ใหม่และบันทึกข้อมูลแล้ว"),
+        Err(error) => {
+            tasks.clone_from_slice(&original_tasks);
+            eprintln!("❌ บันทึกการจัดเรียง ID ไม่สำเร็จ: {error}");
         }
     }
 }
