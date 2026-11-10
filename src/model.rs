@@ -32,8 +32,8 @@ pub enum CalendarFilter {
 // Clone/Copy ใช้ส่งตัวกรองไปตรวจหลาย Task และส่งต่อไปแสดงผล โดยยังใช้ค่าเดิมได้
 #[derive(Clone, Copy)]
 pub struct DateFilter {
-    pub(crate) calendar: CalendarFilter,
-    pub(crate) range: Option<(NaiveDate, NaiveDate)>,
+    pub calendar: CalendarFilter,
+    pub range: Option<(NaiveDate, NaiveDate)>,
 }
 
 impl DateFilter {
